@@ -1,77 +1,85 @@
+// -----------------------------------------------------------------------------
+// The `health_summary` widget: rendered exactly as sent (vocabulary, budget,
+// lengths) in every language and every situation, checked with the SDK's own
+// validator.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateWidgetContent } from '@gladysassistant/integration-sdk';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { buildDiscoveredDevices } from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { DEMO_STATUS_WIDGET, WIDGETS, refreshWidgets } from '../src/widgets.js';
-import { normalizeConfig } from '../src/config.js';
+import { LANGUAGES } from '../src/config.js';
+import { STATUS } from '../src/i18n.js';
+import { buildHealthContent, WIDGET_KEY } from '../src/widgets.js';
+import { createWorld } from './helpers/world.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-const demoStatus = WIDGETS[DEMO_STATUS_WIDGET];
+const world = await createWorld();
+const snapshot = world.app.snapshot;
+await world.app.stop();
+const config = { stepGoal: 10000 };
+const now = Date.parse('2026-07-19T08:00:00Z');
 
-// What the SDK passes to onWidgetGet, plus the config index.js adds.
-const getContent = (cfg = config) =>
-  demoStatus.get(gladys, { settings: {}, language: 'en', units: 'metric', config: cfg });
+const situations = {
+  'a full day': { snapshot },
+  'goal reached, low battery, old sync': {
+    snapshot: {
+      ...snapshot,
+      activity: { ...snapshot.activity, steps: 12345 },
+      tracker: { ...snapshot.tracker, battery: 12, lastSync: '2026-07-10T08:00:00Z' },
+    },
+  },
+  'nothing granted but activity': {
+    snapshot: { ...snapshot, sleep: undefined, restingHeartRate: undefined, tracker: undefined },
+  },
+  'no figure at all': {
+    snapshot: { ...snapshot, activity: null, sleep: null, restingHeartRate: null, tracker: null },
+  },
+  'Google unreachable, last figures': { snapshot, problem: 'unreachable' },
+  'to reconnect': { snapshot, problem: 'reconnect' },
+  'never read': { snapshot: null },
+  'never read, not configured': { snapshot: null, problem: 'setup', detail: STATUS.notConfigured },
+};
 
-test('the demo_status content is rendered exactly as sent', async () => {
-  // [] = nothing the core would drop, truncate or trim to the content budget.
-  assert.deepEqual(validateWidgetContent(await getContent()), []);
+for (const [label, situation] of Object.entries(situations)) {
+  test(`the widget is rendered as sent: ${label}`, () => {
+    for (const language of LANGUAGES) {
+      const content = buildHealthContent({ ...situation, config, language, now });
+      assert.deepEqual(validateWidgetContent(content), [], `${label} (${language})`);
+      assert.ok(content.components.length >= 1);
+    }
+  });
+}
+
+test('the step goal: progress, and the success colour once reached', () => {
+  const content = buildHealthContent({ snapshot, config, language: 'fr', now });
+  const status = content.components.find((c) => c.type === 'status');
+  assert.match(status.items[0].value, /^8\s432 \/ 10\s000 \(84 %\)$/);
+  assert.equal(status.items[0].icon, 'target');
+
+  const reached = buildHealthContent({ snapshot, config: { stepGoal: 8000 }, language: 'en', now });
+  assert.equal(reached.components[0].color, 'success');
+  assert.equal(reached.components.find((c) => c.type === 'status').items[0].icon, 'check-circle');
 });
 
-test('the degraded plug connection content is valid too', async () => {
-  simulateLanSession(false);
-  try {
-    const content = await getContent();
-    assert.deepEqual(validateWidgetContent(content), []);
-    const status = content.components.find((component) => component.type === 'status');
-    assert.ok(
-      status.items.some((item) => item.color === 'warning'),
-      'degraded shows a warning',
-    );
-  } finally {
-    simulateLanSession(true);
-  }
-});
-
-test('the live tiles reference features the integration publishes', async () => {
-  const featureIds = new Set(
-    buildDiscoveredDevices(gladys, config).flatMap((device) =>
-      device.features.map((feature) => feature.external_id),
-    ),
+test('the night on the local clock, the stale sync in warning', () => {
+  const content = buildHealthContent({ snapshot, config, language: 'de', now });
+  const items = content.components.find((c) => c.type === 'status').items;
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ['Schrittziel', 'Letzte Nacht', 'Schlafeffizienz', 'Uhr', 'Letzte Synchronisierung'],
   );
-  const liveTiles = (await getContent()).components.filter((c) => c.device_feature);
-  assert.ok(liveTiles.length > 0, 'the template demonstrates a device-bound tile');
-  for (const tile of liveTiles) {
-    assert.ok(featureIds.has(tile.device_feature), `unknown feature ${tile.device_feature}`);
-  }
+  assert.equal(items[1].value, '23:12 → 07:05');
+  assert.equal(items[4].color, 'neutral', 'synced 16 hours before');
+  const later = buildHealthContent({ snapshot, config, language: 'de', now: now + 86400000 });
+  assert.equal(later.components.find((c) => c.type === 'status').items[4].color, 'warning');
 });
 
-test('every button action of the content is handled and answers a short toast', async () => {
-  const buttons = (await getContent()).components.filter((c) => c.type === 'button' && c.action);
-  assert.ok(buttons.length > 0, 'the template demonstrates a widget action');
-  for (const { action } of buttons) {
-    const message = await demoStatus.action(gladys, {
-      actionKey: action.key,
-      params: action.params ?? {},
-      settings: {},
-      config,
-    });
-    assert.ok(message.en, 'the toast carries at least the mandatory `en` text');
-    assert.ok(message.en.length <= 200, 'toasts are capped at 200 characters');
-  }
-});
-
-test('an unknown widget action fails, so the user sees the error', async () => {
-  await assert.rejects(
-    demoStatus.action(gladys, { actionKey: 'unknown', params: {}, settings: {}, config }),
-    /Unknown widget action/,
-  );
-});
-
-test('refreshWidgets nudges every widget', () => {
-  const fresh = createFakeGladys();
-  refreshWidgets(fresh);
-  assert.deepEqual(fresh.fake.widgetRefreshes, Object.keys(WIDGETS));
+test('the widget is served by the integration in the language of the dashboard', async (t) => {
+  const served = await createWorld();
+  t.after(() => served.app.stop());
+  const ack = await served.gladys.fake.widgetGet(WIDGET_KEY, { language: 'es' });
+  assert.equal(ack.success, true);
+  assert.equal(ack.data.content.components[0].label, 'Pasos');
+  // A language Gladys does not translate: the one of the configuration.
+  const other = await served.gladys.fake.widgetGet(WIDGET_KEY, { language: 'it' });
+  assert.equal(other.data.content.components[0].label, 'Pas');
 });

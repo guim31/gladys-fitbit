@@ -1,0 +1,8 @@
+{
+  "name": "users/me/settings",
+  "timeZone": "Europe/Paris",
+  "utcOffset": "7200s",
+  "languageLocale": "fr_FR",
+  "distanceUnit": "DISTANCE_UNIT_KILOMETERS",
+  "weightUnit": "WEIGHT_UNIT_KILOGRAMS"
+}
