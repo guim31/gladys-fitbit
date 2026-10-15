@@ -1,177 +1,341 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Fitbit",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Steps, sleep, resting heart rate and watch battery of your Fitbit, through Google Health.",
+    "fr": "Pas, sommeil, cœur au repos et batterie de votre montre Fitbit, via Google Health.",
+    "de": "Schritte, Schlaf, Ruhepuls und Akku deiner Fitbit-Uhr, über Google Health.",
+    "es": "Pasos, sueño, pulso en reposo y batería de su reloj Fitbit, a través de Google Health."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-fitbit:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-fitbit/main/cover.png",
+  "categories": ["services"],
+  "transports": ["cloud"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Before you start",
+        "fr": "Avant de commencer",
+        "de": "Bevor du loslegst",
+        "es": "Antes de empezar"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Google has replaced the Fitbit Web API with the Google Health API: the integration reads your Fitbit data from your Google account. In the Google Cloud console, create a project, enable the Google Health API, set up the OAuth consent screen (External, published “In production”) and create an OAuth client of type “Web application” whose authorized redirect URI is the one shown below the Connect button. Then enter its client ID and secret here, save, and press Connect. The documentation gives every step.",
+        "fr": "Google a remplacé l’API Web Fitbit par l’API Google Health : l’intégration lit vos données Fitbit depuis votre compte Google. Dans la console Google Cloud, créez un projet, activez l’API Google Health, configurez l’écran de consentement OAuth (Externe, publié « En production ») et créez un client OAuth de type « Application Web » dont l’URI de redirection autorisée est celle affichée sous le bouton Connecter. Saisissez ensuite son ID client et son secret ici, enregistrez et cliquez sur Connecter. La documentation détaille chaque étape.",
+        "de": "Google hat die Fitbit Web API durch die Google Health API ersetzt: Die Integration liest deine Fitbit-Daten aus deinem Google-Konto. Erstelle in der Google Cloud Console ein Projekt, aktiviere die Google Health API, richte den OAuth-Zustimmungsbildschirm ein (Extern, veröffentlicht „In Produktion“) und erstelle einen OAuth-Client vom Typ „Webanwendung“, dessen autorisierte Weiterleitungs-URI die unter dem Button Verbinden angezeigte ist. Gib dann seine Client-ID und sein Secret hier ein, speichere und klicke auf Verbinden. Die Dokumentation beschreibt jeden Schritt.",
+        "es": "Google ha sustituido la API web de Fitbit por la API de Google Health: la integración lee sus datos de Fitbit desde su cuenta de Google. En la consola de Google Cloud, cree un proyecto, active la API de Google Health, configure la pantalla de consentimiento OAuth (Externa, publicada «En producción») y cree un cliente OAuth de tipo «Aplicación web» cuyo URI de redireccionamiento autorizado sea el que aparece bajo el botón Conectar. Después introduzca aquí su ID de cliente y su secreto, guarde y pulse Conectar. La documentación detalla cada paso."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://console.cloud.google.com/apis/library/health.googleapis.com",
+          "label": {
+            "en": "Google Health API in the Cloud console",
+            "fr": "API Google Health dans la console Cloud",
+            "de": "Google Health API in der Cloud Console",
+            "es": "API de Google Health en la consola Cloud"
+          }
+        },
+        {
+          "url": "https://console.cloud.google.com/apis/credentials",
+          "label": {
+            "en": "OAuth clients (Credentials)",
+            "fr": "Clients OAuth (Identifiants)",
+            "de": "OAuth-Clients (Anmeldedaten)",
+            "es": "Clientes OAuth (Credenciales)"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "client_id",
+      "type": "string",
+      "label": {
+        "en": "OAuth client ID",
+        "fr": "ID client OAuth",
+        "de": "OAuth-Client-ID",
+        "es": "ID de cliente OAuth"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "Client ID of the OAuth client created in your Google Cloud project.",
+        "fr": "ID client du client OAuth créé dans votre projet Google Cloud.",
+        "de": "Client-ID des OAuth-Clients aus deinem Google-Cloud-Projekt.",
+        "es": "ID de cliente del cliente OAuth creado en su proyecto de Google Cloud."
+      },
+      "placeholder": {
+        "en": "123456789012-abc.apps.googleusercontent.com",
+        "fr": "123456789012-abc.apps.googleusercontent.com",
+        "de": "123456789012-abc.apps.googleusercontent.com",
+        "es": "123456789012-abc.apps.googleusercontent.com"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "client_secret",
+      "type": "secret",
+      "label": {
+        "en": "OAuth client secret",
+        "fr": "Secret du client OAuth",
+        "de": "OAuth-Client-Secret",
+        "es": "Secreto del cliente OAuth"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Shown next to the client ID in the Google Cloud console.",
+        "fr": "Affiché à côté de l’ID client dans la console Google Cloud.",
+        "de": "Wird neben der Client-ID in der Google Cloud Console angezeigt.",
+        "es": "Se muestra junto al ID de cliente en la consola de Google Cloud."
+      },
+      "required": true
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "google_account",
+      "type": "oauth2",
+      "label": {
+        "en": "Google account",
+        "fr": "Compte Google",
+        "de": "Google-Konto",
+        "es": "Cuenta de Google"
+      },
+      "description": {
+        "en": "Save the client ID and secret first, then connect the Google account your Fitbit is linked to. Read-only access.",
+        "fr": "Enregistrez d’abord l’ID client et le secret, puis connectez le compte Google lié à votre Fitbit. Accès en lecture seule.",
+        "de": "Speichere zuerst Client-ID und Secret, verbinde dann das Google-Konto, mit dem deine Fitbit verknüpft ist. Nur Lesezugriff.",
+        "es": "Guarde primero el ID de cliente y el secreto, y conecte la cuenta de Google vinculada a su Fitbit. Acceso de solo lectura."
+      }
+    },
+    {
+      "key": "step_goal",
+      "type": "number",
+      "label": {
+        "en": "Daily step goal",
+        "fr": "Objectif de pas quotidien",
+        "de": "Tägliches Schrittziel",
+        "es": "Objetivo diario de pasos"
+      },
+      "description": {
+        "en": "Used by the “Step goal reached” scene trigger and by the widget.",
+        "fr": "Utilisé par le déclencheur de scène « Objectif de pas atteint » et par le widget.",
+        "de": "Wird vom Szenen-Auslöser „Schrittziel erreicht“ und vom Widget verwendet.",
+        "es": "Lo usan el desencadenante de escena «Objetivo de pasos alcanzado» y el widget."
+      },
       "required": false,
-      "default": "celsius",
+      "default": 10000,
+      "min": 1000,
+      "max": 100000
+    },
+    {
+      "key": "refresh_minutes",
+      "type": "select",
+      "label": {
+        "en": "Refresh interval",
+        "fr": "Intervalle de rafraîchissement",
+        "de": "Aktualisierungsintervall",
+        "es": "Intervalo de actualización"
+      },
+      "description": {
+        "en": "How often Google Health is read. The watch itself only sends its data when it syncs with the phone.",
+        "fr": "Fréquence de lecture de Google Health. La montre n’envoie ses données qu’à la synchronisation avec le téléphone.",
+        "de": "Wie oft Google Health gelesen wird. Die Uhr sendet ihre Daten nur beim Synchronisieren mit dem Handy.",
+        "es": "Con qué frecuencia se lee Google Health. El reloj solo envía sus datos al sincronizarse con el teléfono."
+      },
+      "required": false,
+      "default": "15",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "15",
+          "label": {
+            "en": "15 minutes",
+            "fr": "15 minutes",
+            "de": "15 Minuten",
+            "es": "15 minutos"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "30 minutes",
+            "fr": "30 minutes",
+            "de": "30 Minuten",
+            "es": "30 minutos"
+          }
+        },
+        {
+          "value": "60",
+          "label": { "en": "1 hour", "fr": "1 heure", "de": "1 Stunde", "es": "1 hora" }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the feature names",
+        "fr": "Langue des noms de fonctionnalités",
+        "de": "Sprache der Funktionsnamen",
+        "es": "Idioma de los nombres de funciones"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Names given to the features when the device is added to Gladys.",
+        "fr": "Noms donnés aux fonctionnalités quand l’appareil est ajouté à Gladys.",
+        "de": "Namen der Funktionen, wenn das Gerät zu Gladys hinzugefügt wird.",
+        "es": "Nombres de las funciones cuando el dispositivo se añade a Gladys."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": { "en": "English", "fr": "Anglais", "de": "Englisch", "es": "Inglés" }
+        },
+        {
+          "value": "fr",
+          "label": { "en": "French", "fr": "Français", "de": "Französisch", "es": "Francés" }
+        },
+        {
+          "value": "de",
+          "label": { "en": "German", "fr": "Allemand", "de": "Deutsch", "es": "Alemán" }
+        },
+        {
+          "value": "es",
+          "label": { "en": "Spanish", "fr": "Espagnol", "de": "Spanisch", "es": "Español" }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "refresh",
+      "label": {
+        "en": "Refresh now",
+        "fr": "Rafraîchir maintenant",
+        "de": "Jetzt aktualisieren",
+        "es": "Actualizar ahora"
+      },
+      "description": {
+        "en": "Reads Google Health at once, and says what it got or why it failed.",
+        "fr": "Lit Google Health tout de suite, et dit ce qui a été lu ou pourquoi ça a échoué.",
+        "de": "Liest Google Health sofort und sagt, was gelesen wurde oder warum es fehlschlug.",
+        "es": "Lee Google Health al instante e indica lo obtenido o por qué ha fallado."
+      },
+      "timeout_seconds": 45
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+      "key": "woke_up",
+      "label": {
+        "en": "Fitbit: woke up",
+        "fr": "Fitbit : réveillé",
+        "de": "Fitbit: aufgewacht",
+        "es": "Fitbit: despierto"
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
+      "description": {
+        "en": "A night of sleep ended. Known once the watch has synced, so it fires minutes after the wake-up.",
+        "fr": "Une nuit de sommeil s’est terminée. Connue après la synchronisation de la montre : arrive après le réveil.",
+        "de": "Eine Nacht Schlaf ist zu Ende. Erst nach der Synchronisierung der Uhr bekannt: kommt nach dem Aufwachen.",
+        "es": "Una noche de sueño ha terminado. Se conoce tras sincronizar el reloj: llega después del despertar."
+      },
       "variables": [
         {
-          "key": "target",
+          "key": "wake_time",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Wake-up time",
+            "fr": "Heure du lever",
+            "de": "Aufwachzeit",
+            "es": "Hora de despertarse"
+          }
+        },
+        {
+          "key": "bedtime",
+          "type": "string",
+          "label": {
+            "en": "Bedtime",
+            "fr": "Heure du coucher",
+            "de": "Schlafenszeit",
+            "es": "Hora de acostarse"
+          }
+        },
+        {
+          "key": "sleep_hours",
+          "type": "number",
+          "label": {
+            "en": "Hours asleep",
+            "fr": "Heures de sommeil",
+            "de": "Stunden Schlaf",
+            "es": "Horas de sueño"
+          }
+        },
+        {
+          "key": "efficiency",
+          "type": "number",
+          "label": {
+            "en": "Sleep efficiency (%)",
+            "fr": "Efficacité du sommeil (%)",
+            "de": "Schlafeffizienz (%)",
+            "es": "Eficiencia del sueño (%)"
+          }
         }
       ]
-    }
-  ],
-  "scene_actions": [
+    },
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "step_goal_reached",
+      "label": {
+        "en": "Fitbit: step goal reached",
+        "fr": "Fitbit : objectif de pas atteint",
+        "de": "Fitbit: Schrittziel erreicht",
+        "es": "Fitbit: objetivo de pasos alcanzado"
       },
-      "timeout_seconds": 15,
-      "fields": [
+      "description": {
+        "en": "Today’s steps reached the goal of the configuration. Once a day.",
+        "fr": "Les pas du jour ont atteint l’objectif de la configuration. Une fois par jour.",
+        "de": "Die Schritte des Tages haben das Ziel der Konfiguration erreicht. Einmal am Tag.",
+        "es": "Los pasos del día han alcanzado el objetivo de la configuración. Una vez al día."
+      },
+      "variables": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
+          "key": "steps",
+          "type": "number",
+          "label": {
+            "en": "Steps today",
+            "fr": "Pas du jour",
+            "de": "Schritte heute",
+            "es": "Pasos de hoy"
+          }
+        },
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "goal",
+          "type": "number",
+          "label": {
+            "en": "Step goal",
+            "fr": "Objectif de pas",
+            "de": "Schrittziel",
+            "es": "Objetivo de pasos"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "health_summary",
+      "label": {
+        "en": "Fitbit summary",
+        "fr": "Résumé Fitbit",
+        "de": "Fitbit-Übersicht",
+        "es": "Resumen de Fitbit"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Steps and goal, last night’s sleep, resting heart rate, watch battery and last sync.",
+        "fr": "Pas et objectif, nuit dernière, cœur au repos, batterie et synchro de la montre.",
+        "de": "Schritte und Ziel, letzte Nacht, Ruhepuls, Akku und Synchronisierung der Uhr.",
+        "es": "Pasos y objetivo, última noche, pulso en reposo, batería y sincronización del reloj."
+      },
+      "icon": "activity"
     }
   ]
 }

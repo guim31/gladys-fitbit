@@ -11,17 +11,23 @@ Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
 its only runtime dependency. It started from the official JavaScript template.
 
+This one brings the data of a Fitbit watch or tracker into Gladys through the
+**Google Health API** (the successor of the retired Fitbit Web API), with the
+user's own Google Cloud OAuth client: one read-only device per account, two
+scene triggers, one widget. See "Fitbit / Google Health" below.
+
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/app.test.js              # one file
+node --test --test-name-pattern "woke"    # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
 npx github:GladysAssistant/integration-store .   # store admission checks
+node scripts/probe.mjs                    # real Google endpoints, fake credentials (needs network)
 ```
 
 The CI (`.github/workflows/ci.yml`) runs `format:check`, `lint` and `test` on
@@ -31,16 +37,25 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+index.js                          SDK wiring only: registerHandlers, shutdown, connect()
+src/app.js                        every SDK handler: OAuth, refresh, states, triggers, widget, action
+src/google/oauth.js               Google OAuth 2.0 (PKCE S256, offline), tokens in the store, refresh
+src/google/health.js              Google Health API v4 client (identity, settings, rollups, lists, devices)
+src/google/errors.js              HealthError + classification of Google's error answers (kinds)
+src/reader.js                     one reading of the account -> Snapshot (pure parsing, scopes, caches)
+src/device.js                     the Gladys device (features) and the states of a Snapshot
+src/events.js                     scene triggers woke_up / step_goal_reached, announced once (/data)
+src/widgets.js                    the health_summary widget content (pure builder)
+src/poller.js                     the container's own refresh timer, onPoll as fallback (#3198)
+src/store.js                      /data/fitbit.json: tokens, account id, announced events (atomic, 0600)
+src/issues.js                     repeated failures logged once, recovery once
+src/i18n.js                       feature names, statuses, messages in en/fr/de/es, formatters
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+scripts/probe.mjs                 read-only probe of the real Google endpoints (fake client and token)
+gladys-assistant-integration.json manifest: name, config_schema, actions, triggers, widget, image
+docs/{en,fr,de,es}.md             user documentation, same sections in the four languages
+test/                             node --test, SDK's fake Gladys + test/helpers/fakeGoogle.js (fetch)
+test/fixtures/google-health/      real API answers (Home Assistant, python-google-health-api)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +85,10 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German (informal "du") and
+  Spanish (formal "usted"): action messages, connection statuses, widget
+  texts, feature names, manifest texts, and `docs/{en,fr,de,es}.md` with the
+  same sections. `test/i18n.test.js` enforces it.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +250,45 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Fitbit / Google Health (cette intégration)
+
+Faits vérifiés le 15/10/2026, à garder à jour.
+
+- **L'API Web Fitbit est morte.** Support arrêté le 30/09/2026, extinction annoncée pour fin octobre 2026,
+  plus d'inscription sur dev.fitbit.com ; Home Assistant a remplacé `fitbit` par `google_health` (2026.8).
+  L'intégration vise donc la **Google Health API v4** (`https://health.googleapis.com/v4/users/me/...`).
+  Le compte Fitbit de l'utilisateur doit être migré vers un compte Google. Le nom reste « Fitbit » (la marque
+  que l'utilisateur cherche), la documentation explique le changement.
+- **OAuth** : client OAuth Google de l'utilisateur (« Application Web »), champ `oauth2` de Gladys, URI de
+  redirection fixe `https://my.gladysassistant.com/redirect/oauth` (jamais codée en dur : celle que Gladys
+  passe). `access_type=offline` **et** `prompt=consent` : Google n'envoie un refresh token qu'à un
+  consentement. PKCE S256 en plus du secret. Une application laissée « En test » perd son refresh token
+  **tous les 7 jours** (`invalid_grant`) : la doc demande de la publier « En production » (non vérifiée,
+  avertissement de Google, usage personnel). Le consentement est granulaire : l'utilisateur peut décocher
+  un scope ; lire `scope` de la réponse de jeton et sauter ce qui manque (sinon 403
+  `ACCESS_TOKEN_SCOPE_INSUFFICIENT`).
+- **Jetons dans `/data/fitbit.json`** (écriture atomique, 0600), liés au `client_id` : un autre client OAuth
+  ignore les anciens jetons. `invalid_grant` au rafraîchissement → jetons oubliés, statut « reconnectez ».
+- **Réponses** : les int64 (`countSum`, `minutesAsleep`, `beatsPerMinute`, `millimetersSum`…) arrivent en
+  **chaînes JSON** (les fixtures HA ont des nombres : accepter les deux). Les décalages UTC sont des durées
+  protobuf (`"7200s"`) ; les fixtures HA ont `"-07:00"` : accepter les deux. Les cumuls du jour passent par
+  `POST .../dataPoints:dailyRollUp` avec une plage civile `{start:{date}, end:{date+1}}` dans le **fuseau
+  du compte** (`GET /v4/users/me/settings`, `timeZone`). Un jour sans donnée n'a pas de point de cumul.
+- **Sommeil** : `GET .../dataTypes/sleep/dataPoints?pageSize=5`, le plus récent d'abord ; une nuit en cours
+  n'a pas de `summary`, une sieste a `metadata.nap: true` : les écarter. Le « réveil » n'est connu qu'après
+  la synchronisation de la montre : le déclencheur arrive après le lever, jamais pour une nuit finie depuis
+  plus de 12 h, jamais à la première lecture après l'installation.
+- **Identité** : `GET /v4/users/me/identity` → `healthUserId`, stable : c'est le `platformId` de l'appareil,
+  gardé dans `/data` pour publier l'appareil même quand Google ne répond pas.
+- **Erreurs** à distinguer (fixtures dans `test/fixtures/google-health/errors`) : `SERVICE_DISABLED` (API non
+  activée dans le projet), `FAILED_PRECONDITION` « not linked » (compte Fitbit non migré),
+  `RATE_LIMIT_EXCEEDED`/429, 401 (jeton refusé : rafraîchir une fois puis relire).
+- **Quota** : Google ne publie pas de quota par utilisateur pour un projet personnel ; 15 min par défaut
+  (comme HA), 8 requêtes par lecture, poids/masse grasse une fois par heure, fuseau une fois par jour.
+- **Pas de catégorie santé** dans Gladys ni dans le store : `counter-sensor/integer` pour les compteurs (unité
+  dans le nom), `unknown/unknown` pour poids, masse grasse et efficacité (au moins deux du même type, sinon
+  le tableau de bord affiche « Inconnu »), `text/text` pour les heures. Catégorie du store : `services`.
+- **Données de santé** : jamais dans les journaux, à aucun niveau ; `test/logs.test.js` le vérifie.
+- Le proxy des sessions de code laisse passer `oauth2.googleapis.com` et `health.googleapis.com` (`api.fitbit.com` ne
+  s'y résout pas) : `node scripts/probe.mjs` y tourne.

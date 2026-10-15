@@ -1,0 +1,44 @@
+{
+  "dataPoints": [
+    {
+      "name": "users/me/dataTypes/sleep/dataPoints/nap-20261015",
+      "sleep": {
+        "interval": {
+          "startTime": "2026-10-15T12:40:00Z",
+          "endTime": "2026-10-15T13:05:00Z",
+          "startUtcOffset": "7200s",
+          "endUtcOffset": "7200s"
+        },
+        "type": "CLASSIC",
+        "metadata": { "nap": true, "processed": true },
+        "summary": {
+          "minutesToFallAsleep": "0",
+          "minutesAfterWakeUp": "0",
+          "minutesAsleep": "22",
+          "minutesInSleepPeriod": "25",
+          "minutesAwake": "3"
+        }
+      }
+    },
+    {
+      "name": "users/me/dataTypes/sleep/dataPoints/night-20261015",
+      "sleep": {
+        "interval": {
+          "startTime": "2026-10-14T21:12:00Z",
+          "endTime": "2026-10-15T05:05:00Z",
+          "startUtcOffset": "7200s",
+          "endUtcOffset": "7200s"
+        },
+        "type": "STAGES",
+        "metadata": { "nap": false, "processed": true, "stagesStatus": "SUCCEEDED" },
+        "summary": {
+          "minutesToFallAsleep": "9",
+          "minutesAfterWakeUp": "4",
+          "minutesAsleep": "421",
+          "minutesInSleepPeriod": "473",
+          "minutesAwake": "52"
+        }
+      }
+    }
+  ]
+}

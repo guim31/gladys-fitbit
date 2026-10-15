@@ -1,67 +1,211 @@
-# Template de démonstration
+# Fitbit
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Amène dans Gladys les données de votre montre ou bracelet **Fitbit** (et
+d'une Google Pixel Watch utilisée avec Fitbit) : pas, distance, étages,
+calories et minutes actives du jour, fréquence cardiaque au repos, sommeil de
+la nuit, poids et masse grasse quand vous les saisissez, batterie et dernière
+synchronisation de la montre. Deux déclencheurs de scène lancent vos
+routines : **réveillé** et **objectif de pas atteint**. Un widget du tableau
+de bord résume le tout.
 
-## Ce que vous obtenez
+**Lecture seule** : l'intégration n'écrit jamais rien dans votre compte
+Google.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+> **L'API Web Fitbit (Fitbit Web API) est en cours de retrait.** Google l'a
+> remplacée par l'**API Google Health** (Google Health API) : le support de la
+> Fitbit Web API a pris fin le 30 septembre 2026, Google a annoncé son arrêt
+> pour fin octobre 2026, et il n'est plus possible de créer une application
+> développeur Fitbit. Cette intégration lit donc vos données Fitbit par la
+> **Google Health API**, depuis le compte Google auquel votre Fitbit est lié —
+> comme l'intégration « Google Health » de Home Assistant, qui a remplacé son
+> intégration Fitbit.
+
+> **Développée sans le matériel** : l'intégration a été écrite et testée sur
+> les réponses documentées de la Google Health API, sans montre ni compte
+> Fitbit. Vos retours sont bienvenus sur le forum Gladys ou sur GitHub.
+
+Cette intégration n'est affiliée ni à Fitbit ni à Google.
+
+## Prérequis
+
+- Gladys **5.1.0** ou plus récent.
+- Une montre ou un bracelet Fitbit dont le compte Fitbit a été **migré vers
+  un compte Google** (l'application Fitbit le propose ; c'est obligatoire pour
+  la Google Health API).
+- Un **projet Google Cloud** à vous, gratuit : l'intégration utilise _votre_
+  client OAuth, vos données vont de Google à votre Gladys uniquement.
+- L'application Fitbit sur votre téléphone, synchronisée : la montre n'envoie
+  ses données à Google qu'en se synchronisant avec le téléphone.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+La mise en place prend une dizaine de minutes, une seule fois. Le bouton
+Connecter de l'écran Configuration affiche l'**URI de redirection** à
+déclarer chez Google : `https://my.gladysassistant.com/redirect/oauth` (une
+page hébergée par Gladys qui vous renvoie vers votre propre Gladys ; les
+jetons n'y passent jamais).
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+### 1. Créer le projet Google Cloud
 
-## Actions
+1. Ouvrez la [console Google Cloud](https://console.cloud.google.com/) avec
+   n'importe quel compte Google et créez un projet (par exemple « Gladys »).
+2. Dans **API et services → Bibliothèque**, cherchez **Google Health API** et
+   cliquez sur **Activer**.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+### 2. Configurer l'écran de consentement OAuth
 
-## Scènes
+1. Dans **Google Auth Platform** (anciennement « Écran de consentement
+   OAuth »), cliquez sur **Commencer** : donnez un nom d'application
+   (« Gladys »), votre adresse e-mail, choisissez l'audience **Externe** et
+   acceptez les conditions. Laissez vides les champs facultatifs de marque
+   (logo, domaines) : ils déclencheraient la validation par Google.
+2. Dans **Audience**, ajoutez votre propre compte Google (celui de votre
+   Fitbit) comme **utilisateur test**, puis cliquez sur **Publier
+   l'application** pour qu'elle soit **En production**. Une application
+   restée « En test » perd son autorisation **tous les 7 jours**.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+### 3. Créer le client OAuth
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+1. Dans **Clients** (ou **Identifiants**), créez un **ID client OAuth** de
+   type **Application Web**.
+2. Sous **URI de redirection autorisés**, ajoutez exactement
+   `https://my.gladysassistant.com/redirect/oauth`. Si vous avez choisi, dans
+   Gladys, d'utiliser l'adresse de votre instance (Gladys servi en HTTPS),
+   déclarez plutôt cette adresse.
+3. Copiez l'**ID client** et le **code secret du client**.
 
-## Tableau de bord
+### 4. Connecter Gladys
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+1. Dans Gladys, ouvrez **Intégrations → Fitbit → Configuration**, collez
+   l'ID client et le secret, puis **Enregistrez**.
+2. Cliquez sur **Connecter** : Google vous demande de choisir votre compte.
+   L'application étant la vôtre et non validée par Google, il affiche « Google
+   n'a pas validé cette application » : cliquez sur **Paramètres avancés**,
+   puis **Accéder à Gladys**.
+3. Cochez **toutes** les autorisations (activité, mesures de santé, sommeil,
+   paramètres) et confirmez. Une autorisation non cochée laisse ses
+   fonctionnalités vides.
+4. L'appareil **Fitbit** apparaît dans l'onglet **Découverte** : ajoutez-le.
+
+Autres réglages : l'**objectif de pas quotidien** (pour le déclencheur et le
+widget), l'**intervalle de rafraîchissement** (15 minutes par défaut) et la
+**langue des noms de fonctionnalités** (français par défaut, à choisir avant
+d'ajouter l'appareil : Gladys garde les noms donnés à la création).
+
+## L'appareil
+
+Un appareil **Fitbit** par compte Google, en lecture seule :
+
+| Fonctionnalité                     | Contenu                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| Pas du jour                        | Pas depuis minuit (dans le fuseau horaire de votre compte Fitbit)       |
+| Distance du jour                   | Kilomètres                                                              |
+| Étages du jour                     | Étages montés                                                           |
+| Calories brûlées (kcal)            | Total du jour, métabolisme de base compris                              |
+| Minutes actives                    | Minutes modérément et très actives, comme dans l'application Fitbit     |
+| Fréquence cardiaque au repos (bpm) | La dernière valeur quotidienne calculée par Fitbit                      |
+| Durée du sommeil                   | Heures endormi la nuit dernière (siestes exclues)                       |
+| Efficacité du sommeil              | Temps endormi sur le temps entre coucher et lever, en %                 |
+| Heure du coucher / du lever        | Texte, « 23:12 » et « 07:05 », à l'heure du lieu où vous avez dormi     |
+| Poids (kg) / Masse grasse          | La dernière saisie (balance ou saisie manuelle), lue une fois par heure |
+| Batterie de la montre              | % du bracelet synchronisé en dernier (une balance est ignorée)          |
+| Dernière synchronisation           | Texte, date et heure de la dernière synchronisation montre → téléphone  |
+
+Une valeur que Google ne donne pas (pas de poids saisi, autorisation refusée)
+reste vide ; la dernière valeur connue n'est jamais remplacée par 0. Les
+valeurs qui ne changent pas sont renvoyées toutes les 6 heures pour rester
+« récentes » dans Gladys.
+
+## Widget
+
+**Résumé Fitbit** : trois tuiles (pas, heures de sommeil, fréquence cardiaque
+au repos) et une liste : progression vers l'objectif de pas, coucher → lever,
+efficacité du sommeil, montre et batterie (orange sous 20 %), dernière
+synchronisation (orange au-delà de 24 heures). Quand Google ne peut pas être
+lu, une ligne dit pourquoi et les derniers chiffres restent. Le widget
+fonctionne avant même l'ajout de l'appareil.
+
+## Déclencheurs de scène
+
+- **Fitbit : réveillé** (`woke_up`) : une nuit de sommeil s'est terminée.
+  Google ne la connaît qu'une fois la montre synchronisée et la nuit
+  calculée : le déclencheur arrive donc **après** votre lever — de quelques
+  minutes à une heure, selon le moment où le téléphone se synchronise.
+  Variables : heure du lever, heure du coucher, heures de sommeil, efficacité
+  du sommeil. Une fois par nuit, jamais pour une sieste, jamais pour une nuit
+  découverte plus de 12 heures après sa fin.
+- **Fitbit : objectif de pas atteint** (`step_goal_reached`) : les pas du jour
+  ont atteint l'objectif de la configuration. Une fois par jour. Variables :
+  pas, objectif.
+
+La première lecture après l'installation enregistre la situation sans rien
+déclencher : la nuit dernière n'est pas une nouvelle.
+
+## Action de configuration
+
+**Rafraîchir maintenant** lit Google Health tout de suite et dit ce qui a été
+lu (pas du jour, dernière synchronisation) ou pourquoi ça a échoué.
+
+## Exemples de scènes
+
+- **Routine du matin** : déclencheur « Fitbit : réveillé » → ouvrir les volets
+  de la chambre, allumer la cuisine, envoyer « Bonjour ! {{heures de
+  sommeil}} h de sommeil » sur Telegram.
+- **Nuit courte** : déclencheur « Fitbit : réveillé », condition « Durée du
+  sommeil inférieure à 6 » → repousser les appareils bruyants à l'après-midi.
+- **Félicitations** : déclencheur « Fitbit : objectif de pas atteint » → une
+  notification et un flash de couleur de la lampe du salon.
+- **Rappel batterie** : chaque soir à 21 h, condition « Batterie de la montre
+  inférieure à 20 » → « Pense à charger ta montre avant la nuit ».
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **« Saisissez l'ID client et le secret… »** : remplissez les deux champs et
+  enregistrez avant de cliquer sur Connecter.
+- **Google affiche « redirect_uri_mismatch »** : l'URI de redirection
+  autorisée du client OAuth doit être exactement celle affichée sous le
+  bouton Connecter.
+- **« L'API Google Health n'est pas activée… »** : activez-la dans la
+  bibliothèque de votre projet, puis patientez quelques minutes.
+- **« Ce compte Google n'a pas de données Fitbit… »** : migrez votre compte
+  Fitbit vers votre compte Google dans l'application Fitbit, puis connectez
+  ce compte Google.
+- **« Google a retiré l'autorisation… » chaque semaine** : l'application de
+  votre projet est encore « En test » : publiez-la en production, puis
+  cliquez à nouveau sur Connecter.
+- **Des chiffres qui ne bougent pas** : regardez « Dernière synchronisation »
+  — la montre doit se synchroniser avec l'application Fitbit du téléphone
+  (Bluetooth activé, application autorisée en arrière-plan).
+- **Des fonctionnalités vides** : une autorisation est restée décochée sur
+  l'écran de consentement de Google. Cliquez à nouveau sur Connecter et
+  cochez tout.
+- Journaux détaillés : démarrez l'intégration avec `LOG_LEVEL=debug`. Ils ne
+  contiennent jamais vos données de santé ni vos jetons.
+
+## Limites
+
+- **Pas de temps réel** : Google Health a ce que la montre a envoyé à sa
+  dernière synchronisation ; l'intégration le lit toutes les 15 minutes par
+  défaut (30 min ou 1 h possibles).
+- **Quota** : Google fixe le quota de l'API par projet Cloud (voir « Quotas »
+  dans la console). Une lecture coûte 8 requêtes (2 de plus une fois par
+  heure pour le poids et la masse grasse), environ 35 requêtes par heure à
+  15 minutes : loin des limites. Google peut répondre « quota dépassé »
+  (429) : l'intégration réessaie au rafraîchissement suivant.
+- **Un seul compte Google** par installation de l'intégration.
+- L'objectif de pas de l'application Fitbit n'est pas exposé par l'API :
+  réglez le vôtre dans la configuration.
+- Pas de fréquence cardiaque minute par minute, pas de phases de sommeil, pas
+  de SpO2 : gardés pour une version ultérieure.
+- **Application Google non validée** : convient à un usage personnel (jusqu'à
+  100 utilisateurs) ; Google affiche un avertissement sur l'écran de
+  consentement.
+
+## Confidentialité et données
+
+- L'intégration ne parle qu'à Google (`oauth2.googleapis.com`,
+  `health.googleapis.com`), avec votre propre client OAuth.
+- Les jetons sont gardés dans `/data/fitbit.json`, lisible par l'intégration
+  seule ; le secret du client reste dans la configuration de Gladys.
+- Les données de santé vont dans Gladys (états, historique, widget) et nulle
+  part ailleurs, et jamais dans les journaux.
